@@ -1,0 +1,66 @@
+target/
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iml
+.vscode/
+.env
+*.log
+.DS_Store
+
+# --- Entornos de Desarrollo y Editores ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# --- Archivos del Sistema Operativo ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Seguridad y Secretos (¡NUNCA SUBIR!) ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.cert
+*.pfx
+src/main/resources/keys/private_key.pem
+
+# --- Dependencias y Paquetes (Se regeneran con comandos) ---
+node_modules/
+jspm_packages/
+.pnp/
+.pnp.js
+vendor/
+.pub-cache/
+
+# --- Carpetas de Compilación y Producción ---
+target/
+dist/
+build/
+out/
+bin/
+obj/
+.next/
+.nuxt/
+.cache/
+
+# --- Logs y Reportes ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+coverage/
+.nyc_output/
