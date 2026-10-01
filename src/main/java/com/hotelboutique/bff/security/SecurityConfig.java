@@ -1,5 +1,6 @@
 package com.hotelboutique.bff.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,26 +10,26 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    @Value("${spring.security.oauth2.resourceserver.jwt.audiences:}")
+    private String audiences;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -47,7 +48,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/reservas/*/cancelar").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(cognitoAuthConverter())));
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(entraAuthConverter())));
 
         return http.build();
     }
@@ -65,22 +66,42 @@ public class SecurityConfig {
         return source;
     }
 
-    private Converter<Jwt, AbstractAuthenticationToken> cognitoAuthConverter() {
-        JwtGrantedAuthoritiesConverter defaultConverter = new JwtGrantedAuthoritiesConverter();
-
+    private Converter<Jwt, AbstractAuthenticationToken> entraAuthConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setPrincipalClaimName("email");
+
+        // Principal claim: use preferred_username (UPN) de Entra ID
+        converter.setPrincipalClaimName("preferred_username");
+
+        // Converter para roles (claims)
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            Collection<GrantedAuthority> autoridadesBase = defaultConverter.convert(jwt);
+            // Validar audience
+            validateAudience(jwt);
 
-            List<String> grupos = jwt.getClaimAsStringList("cognito:groups");
-            Stream<GrantedAuthority> autoridadesDeGrupos = grupos == null
-                    ? Stream.empty()
-                    : grupos.stream().map(grupo -> new SimpleGrantedAuthority("ROLE_" + grupo));
+            // Extrae roles de Entra ID
+            List<String> roles = jwt.getClaimAsStringList("roles");
 
-            return Stream.concat(autoridadesBase.stream(), autoridadesDeGrupos).collect(Collectors.toList());
+            if (roles == null || roles.isEmpty()) {
+                return List.of();
+            }
+
+            return roles.stream()
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .collect(Collectors.toList());
         });
 
         return converter;
+    }
+
+    private void validateAudience(Jwt jwt) {
+        String tokenAud = jwt.getClaimAsString(JwtClaimNames.AUD);
+
+        // La app del API que configura este BFF es el audience esperado
+        String expectedAud = "ecc9edec-2abe-4cec-9a71-f60b2826c339";
+
+        if (tokenAud == null || !tokenAud.equals(expectedAud)) {
+            throw new IllegalArgumentException(
+                    String.format("Invalid audience. Expected: %s, got: %s", expectedAud, tokenAud)
+            );
+        }
     }
 }
