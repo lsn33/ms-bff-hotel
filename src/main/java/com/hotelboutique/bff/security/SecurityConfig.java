@@ -28,8 +28,8 @@ import java.util.stream.Collectors;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Value("${spring.security.oauth2.resourceserver.jwt.audiences:}")
-    private String audiences;
+    @Value("${spring.security.oauth2.resourceserver.jwt.audiences:ecc9edec-2abe-4cec-9a71-f60b2826c339}")
+    private String expectedAudience;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -38,14 +38,22 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Preflight del navegador: no lleva token ni ejecuta logica de negocio
+                        // Preflight del navegador: no lleva token ni ejecuta lógica de negocio
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        
+                        // Catálogo público o de consulta
                         .requestMatchers(HttpMethod.GET, "/habitaciones/disponibles").permitAll()
                         .requestMatchers(HttpMethod.POST, "/habitaciones").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/reservas").hasRole("ADMIN")
+                        
+                        // Gestión de reservas segmentada por rol (Rúbrica Caso 5)
+                        .requestMatchers(HttpMethod.POST, "/reservas").hasAnyRole("ADMIN", "CLIENTE") // Permitir crear a ambos
+                        .requestMatchers(HttpMethod.GET, "/reservas").hasAnyRole("ADMIN", "CLIENTE")  // Filtro interno o global de visualización
+                        
+                        // Acciones puramente administrativas (Check-In / Check-Out de Recepción)
                         .requestMatchers(HttpMethod.PUT, "/reservas/*/checkin").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/reservas/*/checkout").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/reservas/*/cancelar").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/reservas/*/cancelar").hasAnyRole("ADMIN", "CLIENTE") // Ambos actores pueden cancelar reservas
+                        
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(entraAuthConverter())));
@@ -56,10 +64,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:4200"));
+        
+        // Habilitamos localhost para desarrollo local y patrones dinámicos si se despliega en CloudFront/S3
+        config.setAllowedOriginPatterns(List.of("http://localhost:4200", "https://*.aws.com", "http://*.aws.com"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("authorization", "content-type"));
-        config.setMaxAge(600L);
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -74,7 +85,7 @@ public class SecurityConfig {
 
         // Converter para roles (claims)
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            // Validar audience
+            // Validar audience de forma estricta
             validateAudience(jwt);
 
             // Extrae roles de Entra ID
@@ -85,7 +96,7 @@ public class SecurityConfig {
             }
 
             return roles.stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role)) // Concatena el prefijo esperado por .hasRole()
                     .collect(Collectors.toList());
         });
 
@@ -93,14 +104,12 @@ public class SecurityConfig {
     }
 
     private void validateAudience(Jwt jwt) {
-        String tokenAud = jwt.getClaimAsString(JwtClaimNames.AUD);
+        List<String> tokenAud = jwt.getAudience();
 
-        // La app del API que configura este BFF es el audience esperado
-        String expectedAud = "ecc9edec-2abe-4cec-9a71-f60b2826c339";
-
-        if (tokenAud == null || !tokenAud.equals(expectedAud)) {
+        // Validación adaptada para arreglar casos donde Microsoft envía múltiples audiences en formato de lista
+        if (tokenAud == null || tokenAud.stream().noneMatch(aud -> aud.equals(expectedAudience))) {
             throw new IllegalArgumentException(
-                    String.format("Invalid audience. Expected: %s, got: %s", expectedAud, tokenAud)
+                    String.format("Invalid audience. Expected: %s, got: %s", expectedAudience, tokenAud)
             );
         }
     }

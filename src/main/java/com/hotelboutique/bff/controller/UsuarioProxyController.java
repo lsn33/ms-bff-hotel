@@ -1,6 +1,6 @@
 package com.hotelboutique.bff.controller;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -11,10 +11,10 @@ import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/usuarios")
-@RequiredArgsConstructor
 public class UsuarioProxyController {
 
-    private final RestTemplate restTemplate;
+    @Autowired // Corregido: Inyección nativa directa de Spring sin depender de Lombok
+    private RestTemplate restTemplate;
 
     @Value("${usuarios.service.url}")
     private String usuariosServiceUrl;
