@@ -1,11 +1,14 @@
 package com.hotelboutique.bff.controller;
 
+import com.hotelboutique.bff.messaging.SolicitudEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
@@ -15,13 +18,18 @@ import org.springframework.web.client.RestTemplate;
 public class ReservaProxyController {
 
     private final RestTemplate restTemplate;
+    private final SolicitudEventPublisher solicitudPublisher;
 
     @Value("${reservas.service.url}")
     private String reservasServiceUrl;
 
     @PostMapping
-    public ResponseEntity<String> crear(@RequestHeader("Authorization") String authHeader, @RequestBody String body) {
-        return reenviar(HttpMethod.POST, "/reservas", authHeader, body);
+    public ResponseEntity<String> crear(@AuthenticationPrincipal Jwt jwt,
+                                        @RequestHeader("Authorization") String authHeader,
+                                        @RequestBody String body) {
+        ResponseEntity<String> respuesta = reenviar(HttpMethod.POST, "/reservas", authHeader, body);
+        solicitudPublisher.publicarSolicitud(jwt.getClaimAsString("email"));
+        return respuesta;
     }
 
     @GetMapping("/mias")
