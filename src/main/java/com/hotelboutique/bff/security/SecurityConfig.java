@@ -45,6 +45,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/reservas/*/checkin").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/reservas/*/checkout").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/reservas/*/cancelar").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(cognitoAuthConverter())));
