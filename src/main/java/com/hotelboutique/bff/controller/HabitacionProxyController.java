@@ -46,4 +46,16 @@ public class HabitacionProxyController {
                 reservasServiceUrl + "/habitaciones", HttpMethod.POST, entity, String.class
         );
     }
+
+    /** Ocupacion en tiempo real de las habitaciones (alimentada por Kafka en ms-reservas; solo ADMIN). */
+    @GetMapping("/ocupacion")
+    public ResponseEntity<String> ocupacion(@RequestHeader("Authorization") String authHeader) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", authHeader);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        return restTemplate.exchange(
+                reservasServiceUrl + "/habitaciones/ocupacion", HttpMethod.GET, entity, String.class
+        );
+    }
 }
