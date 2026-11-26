@@ -37,4 +37,14 @@ public class UsuarioProxyController {
 
         return restTemplate.exchange(usuariosServiceUrl + "/usuarios/me", HttpMethod.GET, entity, String.class);
     }
+
+    /** Actividad del usuario autenticado (calculada en ms-auth con los eventos de reserva de Kafka). */
+    @GetMapping("/mi-actividad")
+    public ResponseEntity<String> miActividad(@RequestHeader("Authorization") String authHeader) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", authHeader);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        return restTemplate.exchange(usuariosServiceUrl + "/usuarios/mi-actividad", HttpMethod.GET, entity, String.class);
+    }
 }
